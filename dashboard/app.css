@@ -32,7 +32,7 @@ body {
   line-height: 1.45;
 }
 
-main { max-width: 1180px; margin: 0 auto; padding: 26px 22px 40px; }
+main { max-width: 1180px; margin: 0 auto; padding: 20px 22px 40px; }
 
 a { color: var(--mint); text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -51,13 +51,13 @@ a:hover { text-decoration: underline; }
 .scope::before { inset: 8px; }
 .scope::after { inset: 17px; background: var(--mint); border: none; }
 .masthead h1 {
-  margin: 0; font-size: 27px; letter-spacing: 0.14em; font-weight: 700; text-transform: uppercase;
+  margin: 0; font-size: 24px; letter-spacing: 0.14em; font-weight: 700; text-transform: uppercase;
 }
 .masthead h1 .thin { color: var(--mint); }
 .tagline { margin: 3px 0 0; color: var(--dim); font-size: 13.5px; max-width: 760px; }
 .tagline b { color: var(--text); font-weight: 600; }
 
-.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 11px 0 0; }
 .chip {
   border: 1px solid var(--line); background: var(--panel); border-radius: 999px;
   padding: 4px 11px; font-size: 12px; color: var(--dim); white-space: nowrap;
@@ -67,8 +67,8 @@ a:hover { text-decoration: underline; }
 .chip.hot b { color: var(--mint); }
 
 .method {
-  margin-top: 14px; border: 1px solid var(--line-soft); border-left: 3px solid var(--mint-dim);
-  background: var(--panel); padding: 10px 14px; color: var(--dim); font-size: 12.8px;
+  margin-top: 10px; border: 1px solid var(--line-soft); border-left: 3px solid var(--mint-dim);
+  background: var(--panel); padding: 8px 12px; color: var(--dim); font-size: 12.8px;
 }
 .method .formula { font-family: var(--mono); color: var(--text); font-size: 12.8px; }
 .method p { margin: 4px 0 0; }
@@ -77,7 +77,7 @@ a:hover { text-decoration: underline; }
 
 .controls {
   display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
-  margin: 20px 0 10px; padding: 12px; border: 1px solid var(--line);
+  margin: 14px 0 8px; padding: 10px 12px; border: 1px solid var(--line);
   background: var(--panel); border-radius: 10px;
 }
 .controls input[type="search"], .controls select {
@@ -99,7 +99,10 @@ a:hover { text-decoration: underline; }
 /* Board table ------------------------------------------------------------- */
 
 table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+th, td { padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+th.sortable { cursor: pointer; }
+th.sortable:hover { color: var(--mint); }
+th .arr { color: var(--mint); font-size: 10px; }
 th {
   font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--faint);
   background: var(--panel-2); font-weight: 600; white-space: nowrap;
@@ -147,6 +150,13 @@ tbody tr:hover { background: rgba(61, 220, 151, 0.05); }
 .panel td, .panel th { border-bottom: 1px solid var(--line-soft); padding: 6px 8px; }
 .panel tr:last-child td { border-bottom: 0; }
 .total td { font-weight: 700; color: var(--mint); }
+
+.planstrip {
+  display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 12px; padding: 8px 12px;
+  border: 1px solid var(--line-soft); border-radius: 7px; background: var(--panel-2);
+  color: var(--dim); font-size: 12.5px;
+}
+.planstrip b { color: var(--text); font-family: var(--mono); font-weight: 600; }
 
 ol.plan { margin: 0; padding-left: 21px; }
 ol.plan li { margin: 0 0 10px; }

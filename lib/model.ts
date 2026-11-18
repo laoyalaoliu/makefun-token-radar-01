@@ -79,7 +79,7 @@ export const MODEL: ModelConstants = {
 };
 
 /** The model's version label: the dashboard names it and the board's rows carry it. */
-export const MODEL_VERSION = 'peerx-2';
+export const MODEL_VERSION = 'peerx-3';
 
 /** How many already-trading protocols the dashboard's reference view carries, by market cap. */
 export const LIVE_ROWS = 24;
@@ -111,6 +111,16 @@ export interface BoardRow {
     age_days: number | null;
   };
   farm_steps: string[];
+  farm_summary: FarmSummary;
+}
+
+/** One farm plan's totals, derived from the same figures its steps state: what the whole plan costs. */
+export interface FarmSummary {
+  capital_usd: number;
+  gas_usd: number;
+  weeks: number;
+  hold_days: number;
+  minutes: number;
 }
 
 /** The dashboard's view of one board row: the row itself, farm plan included. */
@@ -305,6 +315,7 @@ export function buildBoard(snapshot: Snapshot, model: ModelConstants = MODEL): B
       age_days: s.v.age,
     },
     farm_steps: farmSteps(s.p, s.v.age),
+    farm_summary: farmSummary(s.p, s.v.age),
   }));
 }
 
@@ -315,16 +326,16 @@ export function buildBoard(snapshot: Snapshot, model: ModelConstants = MODEL): B
 // states what to do, what it costs and how long it takes.
 // ---------------------------------------------------------------------------
 
-/** What one transaction roughly costs on the protocol's first chain. */
-function gasProfile(p: SnapshotProtocol): { label: string; oneTx: string; weekly: string } {
+/** What one transaction roughly costs on the protocol's first chain, in words and in figures. */
+function gasProfile(p: SnapshotProtocol): { label: string; oneTx: string; weekly: string; txUsd: number; weeklyUsd: number } {
   const chain = (p.chains[0] ?? '').toLowerCase();
-  if (chain === 'ethereum') return { label: 'Ethereum mainnet', oneTx: 'about $18 of ETH in gas', weekly: 'about $12 of ETH a week' };
-  if (chain === 'solana') return { label: 'Solana', oneTx: 'under $1 of SOL in fees', weekly: 'under $1 of SOL a week' };
+  if (chain === 'ethereum') return { label: 'Ethereum mainnet', oneTx: 'about $18 of ETH in gas', weekly: 'about $12 of ETH a week', txUsd: 18, weeklyUsd: 12 };
+  if (chain === 'solana') return { label: 'Solana', oneTx: 'under $1 of SOL in fees', weekly: 'under $1 of SOL a week', txUsd: 0.1, weeklyUsd: 0.1 };
   if (['arbitrum', 'base', 'optimism', 'zksync era', 'scroll', 'linea', 'mantle', 'mode', 'blast', 'taiko'].includes(chain)) {
-    return { label: p.chains[0]!, oneTx: 'about $2 of ETH in gas', weekly: 'about $2 of ETH a week' };
+    return { label: p.chains[0]!, oneTx: 'about $2 of ETH in gas', weekly: 'about $2 of ETH a week', txUsd: 2, weeklyUsd: 2 };
   }
-  if (chain === '') return { label: 'its main chain', oneTx: 'about $5 of gas', weekly: 'about $4 of gas a week' };
-  return { label: p.chains[0]!, oneTx: 'about $3 of gas', weekly: 'about $3 of gas a week' };
+  if (chain === '') return { label: 'its main chain', oneTx: 'about $5 of gas', weekly: 'about $4 of gas a week', txUsd: 5, weeklyUsd: 4 };
+  return { label: p.chains[0]!, oneTx: 'about $3 of gas', weekly: 'about $3 of gas a week', txUsd: 3, weeklyUsd: 3 };
 }
 
 /** The position size one farm wallet carries, from the protocol's own TVL. */
@@ -412,7 +423,14 @@ function actionsFor(p: SnapshotProtocol, capital: number, chainLabel: string): {
       weekly: `claim the yield once and leave it in the wallet as a balance the protocol can see`,
     };
   }
-  // Yield, curators, allocators, aggregators and every other category share the vault shape.
+  if (c.includes('curator') || c.includes('allocator')) {
+    return {
+      open: `Deposit $${capital} of USDC into ${n}'s largest vault on ${chainLabel} and keep the vault shares in the wallet`,
+      deepen: `Read the vault's current allocations and the curator's risk notes, then add about $${Math.round(capital * 0.5)} more only while the vault still holds the assets its page names`,
+      weekly: `check the vault's allocation and any curator announcement once, and move to the curator's other vault if its mandate or asset list changes`,
+    };
+  }
+  // Yield, aggregators and every other category share the vault shape.
   return {
     open: `Deposit $${capital} of USDC into ${n}'s main vault or strategy on ${chainLabel} and keep the vault shares in the wallet`,
     deepen: `Move about a third of the position into a second ${n} vault or strategy, so the wallet uses more than one product`,
@@ -458,6 +476,21 @@ export function farmSteps(p: SnapshotProtocol, age: number | null): string[] {
       '10 minutes to write, 15 minutes to unwind',
     ),
   ];
+}
+
+/**
+ * A plan's totals, from the same figures its steps state: the capital the position carries, the gas
+ * of the four one-off transactions (fund, open, deepen, unwind) plus the weekly actions and checks,
+ * and the minutes the steps name, week by week. The dashboard shows them beside the plan so a reader
+ * sees the whole cost before the first step.
+ */
+export function farmSummary(p: SnapshotProtocol, age: number | null): FarmSummary {
+  const gas = gasProfile(p);
+  const hold = holdDaysFor(age);
+  const weeks = Math.ceil(hold / 7);
+  const gasUsd = Math.round((gas.txUsd * 4 + gas.weeklyUsd * weeks) * 100) / 100;
+  const minutes = 10 + 15 + 15 + weeks * 10 + weeks * 5 + 10 + 15;
+  return { capital_usd: capitalFor(p), gas_usd: gasUsd, weeks, hold_days: hold, minutes };
 }
 
 /** The already-trading protocols, by market cap, for the dashboard's reference view. */

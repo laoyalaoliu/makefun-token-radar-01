@@ -43,7 +43,7 @@
   /* State ----------------------------------------------------------------- */
 
   function parseHash() {
-    var s = { view: 'board', slug: '', q: '', cat: '', chain: '', sort: 'rank', wl: '', min: '' };
+    var s = { view: 'board', slug: '', q: '', cat: '', chain: '', sort: 'rank', dir: '', wl: '', min: '' };
     var h = location.hash.replace(/^#/, '');
     h.split('&').forEach(function (pair) {
       var kv = pair.split('=');
@@ -54,7 +54,7 @@
   function hashOf(s) {
     var parts = [];
     Object.keys(s).forEach(function (k) {
-      if (s[k] !== '' && !(k === 'view' && s[k] === 'board') && !(k === 'sort' && s[k] === 'rank')) {
+      if (s[k] !== '' && !(k === 'view' && s[k] === 'board') && !(k === 'sort' && s[k] === 'rank' && s.dir === '')) {
         parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(s[k]));
       }
     });
@@ -123,8 +123,19 @@
       age: function (a, b) { return (b.age_days == null ? -1 : b.age_days) - (a.age_days == null ? -1 : a.age_days); },
       name: function (a, b) { return a.name < b.name ? -1 : 1; }
     };
-    rows.sort(by[s.sort] || by.rank);
+    var cmp = by[s.sort] || by.rank;
+    if (s.dir !== '' && s.dir !== naturalDir(s.sort)) cmp = function (a, b) { return -cmp(a, b); };
+    rows.sort(cmp);
     return rows;
+  }
+
+  /* Each sort key's natural direction: the way its column reads best first. A header click takes the
+     natural direction, a second click on the same header reverses it. */
+  function naturalDir(key) { return key === 'rank' || key === 'name' ? 'asc' : 'desc'; }
+  function sortArrow(s, key) {
+    if ((s.sort || 'rank') !== key) return '';
+    var dir = s.dir !== '' ? s.dir : naturalDir(key);
+    return ' <span class="arr">' + (dir === 'asc' ? '\u2191' : '\u2193') + '</span>';
   }
 
   function boardView(s) {
@@ -154,14 +165,17 @@
       '<span class="spacer"></span>' +
       '<span class="seg"><button id="v-board" class="on">Pre-token board</button><button id="v-live">Already trading</button></span>' +
       '</div>' +
-      '<p class="count">Showing <b>' + rows.length + '</b> of ' + D.rows.length + ' ranked protocols. Click a row for its model breakdown and farm plan.</p>';
+      '<p class="count">Showing <b>' + rows.length + '</b> of ' + D.rows.length + ' ranked protocols. Click a column head to sort by it, a row for its model breakdown and farm plan.</p>';
 
     if (rows.length === 0) {
       html += '<div class="empty">No protocol matches those filters. Loosen one and sweep again.</div>';
     } else {
-      html += '<table><thead><tr><th class="num">#</th><th>Protocol</th><th>Category</th><th>Chains</th>' +
-        '<th class="num">TVL</th><th class="num">7d</th><th class="num">Age</th><th class="num">Peer \u00d7</th>' +
-        '<th class="num">Implied value</th><th>Signal</th></tr></thead><tbody>';
+      html += '<table><thead><tr><th class="num sortable" data-sort="rank" title="Sort by implied value">#' + sortArrow(s, 'rank') + '</th>' +
+        '<th class="sortable" data-sort="name" title="Sort by name">Protocol' + sortArrow(s, 'name') + '</th><th>Category</th><th>Chains</th>' +
+        '<th class="num sortable" data-sort="tvl" title="Sort by TVL">TVL' + sortArrow(s, 'tvl') + '</th>' +
+        '<th class="num sortable" data-sort="change" title="Sort by 7-day TVL change">7d' + sortArrow(s, 'change') + '</th>' +
+        '<th class="num sortable" data-sort="age" title="Sort by age with no token">Age' + sortArrow(s, 'age') + '</th><th class="num">Peer \u00d7</th>' +
+        '<th class="num sortable" data-sort="rank" title="Sort by implied value">Implied value' + sortArrow(s, 'rank') + '</th><th>Signal</th></tr></thead><tbody>';
       rows.forEach(function (r) {
         var tags = (r.watchlist ? '<span class="tag wl">Watchlist</span>' : '') +
           (!r.watchlist && r.tvl_usd < D.floor_usd ? '<span class="tag early">Early</span>' : '');
@@ -217,8 +231,21 @@
       '<tr><td>\u00d7 reach (' + r.chains.length + ' chain' + (r.chains.length === 1 ? '' : 's') + ')</td><td class="num">' + mult(m.reach_multiplier) + '</td></tr>' +
       '<tr class="total"><td>Implied value</td><td class="num">' + money(r.implied_value_usd) + '</td></tr></table>' +
       '<p class="note">Cross-check inside the steps: base \u00d7 momentum alone is ' + money(Math.round(afterMomentum)) + ', and \u00d7 maturity is ' +
-      money(Math.round(afterMaturity)) + '. The same formula scores every row on the board; nothing about ' + esc(r.name) + ' itself is an input beyond its record above.</p></div>' +
-      '<div class="panel"><h3>Farm plan — what to do before any token</h3><ol class="plan">' +
+      money(Math.round(afterMaturity)) + '. Sensitivity: with a neutral week (momentum \u00d71.0) the value would be ' +
+      money(Math.round(r.implied_value_usd / m.momentum_multiplier)) +
+      (m.multiple_source.indexOf('category') === 0
+        ? ', and priced at the global median multiple (' + mult(D.global_multiple) + ') instead of its category\u2019s it would be ' +
+          money(Math.round(r.implied_value_usd * D.global_multiple / m.multiple)) + '.'
+        : '. Its category has too few trading peers to set its own multiple, so the global median above is the price.') +
+      ' The same formula scores every row on the board; nothing about ' + esc(r.name) + ' itself is an input beyond its record above.</p></div>' +
+      '<div class="panel"><h3>Farm plan — what to do before any token</h3>' +
+      (r.farm_summary ? '<div class="planstrip">' +
+        '<span>Capital at work <b>' + money(r.farm_summary.capital_usd) + '</b></span>' +
+        '<span>Gas over the whole plan <b>' + (r.farm_summary.gas_usd < 1 ? 'under $1' : '\u2248$' + Math.round(r.farm_summary.gas_usd)) + '</b></span>' +
+        '<span>Time all-in <b>' + (r.farm_summary.minutes >= 60 ? '\u2248' + Math.floor(r.farm_summary.minutes / 60) + 'h' + (r.farm_summary.minutes % 60 ? ' ' + (r.farm_summary.minutes % 60) + 'm' : '') : r.farm_summary.minutes + ' min') + '</b></span>' +
+        '<span>Hold <b>' + r.farm_summary.hold_days + ' days</b> over ' + r.farm_summary.weeks + ' weeks</span>' +
+        '</div>' : '') +
+      '<ol class="plan">' +
       r.farm_steps.map(function (stepText) { return '<li>' + esc(stepText) + '</li>'; }).join('') +
       '</ol><p class="note"><b>Risk note:</b> a farm plan is a starting point, not advice. Smart-contract and bridge risk are real; ' +
       'keep position sizes survivable, and treat any \u201cclaim fee\u201d as a scam.</p></div>';
@@ -278,7 +305,16 @@
     var min = document.getElementById('min');
     if (min) min.addEventListener('change', function () { upd({ min: min.value }); });
     var sort = document.getElementById('sort');
-    if (sort) sort.addEventListener('change', function () { upd({ sort: sort.value }); });
+    if (sort) sort.addEventListener('change', function () { upd({ sort: sort.value, dir: '' }); });
+    Array.prototype.forEach.call(document.querySelectorAll('th[data-sort]'), function (th) {
+      th.addEventListener('click', function () {
+        var key = th.getAttribute('data-sort');
+        var cur = parseHash();
+        var eff = cur.dir !== '' ? cur.dir : naturalDir(cur.sort || 'rank');
+        if ((cur.sort || 'rank') === key) upd({ sort: key, dir: eff === 'asc' ? 'desc' : 'asc' });
+        else upd({ sort: key, dir: '' });
+      });
+    });
     var wl = document.getElementById('wl');
     if (wl) wl.addEventListener('change', function () { upd({ wl: wl.checked ? '1' : '' }); });
     Array.prototype.forEach.call(document.querySelectorAll('tbody tr[data-slug]'), function (tr) {
